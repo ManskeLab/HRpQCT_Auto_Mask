@@ -33,7 +33,6 @@ def autocontour(img):
 
     # closed = dilate_filter.Execute(thresh_img)
     # closed = erode_filter.Execute(closed)
-    # sitk.WriteImage(closed, 'Z:/work2/manske/temp/automaskfix/trehsh.nii')
 
     for z in range(depth-1, -1, -1):
         pre_fill = thresh_img[:,:,z]
@@ -72,7 +71,6 @@ def autocontour(img):
             break
     
     # img = convert_hu_to_bmd(img, mu_water, rescale_slope, rescale_intercept)
-    sitk.WriteImage(img, 'Z:/work2/manske/temp/automaskfix/bmd.nii')
 
     auto_contour = Automasker()
     prx_mask = auto_contour.get_periosteal_mask(img, 1)

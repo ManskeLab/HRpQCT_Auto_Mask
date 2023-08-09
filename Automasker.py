@@ -47,11 +47,9 @@ class Automasker:
         gaussian_filter = sitk.SmoothingRecursiveGaussianImageFilter()
         gaussian_filter.SetSigma(sigma_over_spacing)
         gaussian_img = gaussian_filter.Execute(img)
-        sitk.WriteImage(gaussian_img, 'Z:/work2/manske/temp/automaskfix/smooth.nii')
         # median_filter = sitk.MedianImageFilter()
         # median_filter.SetRadius(2)
         # median_img = median_filter.Execute(img)
-        # sitk.WriteImage(median_img, 'Z:/work2/manske/temp/automaskfix/median.nii')  
 
         rough_mask = sitk.BinaryThreshold(gaussian_img,
                               lowerThreshold= 0.8, 
@@ -61,7 +59,6 @@ class Automasker:
         # rough_mask = dilate_filter.Execute(rough_mask)
         # rough_mask = fillhole_filter.Execute(rough_mask)
         # rough_mask = erode_filter.Execute(rough_mask)
-        sitk.WriteImage(rough_mask, 'Z:/work2/manske/temp/automaskfix/fill.nii') 
 
         dilate_filter.SetKernelRadius(6)
         erode_filter.SetKernelRadius(6)
@@ -70,24 +67,19 @@ class Automasker:
         img_conn = sitk.ConnectedComponent(thresh_img2, thresh_img2)
         img_conn = sitk.RelabelComponent(img_conn, sortByObjectSize=True)
         img_segmented = 1 * (img_conn == component)
-        sitk.WriteImage(img_segmented, 'Z:/work2/manske/temp/automaskfix/img_{}.nii'.format(component))
 
         smoother = sitk.AntiAliasBinaryImageFilter()
         thresh_img2 = smoother.Execute(img_segmented)
-        sitk.WriteImage(thresh_img2, 'Z:/work2/manske/temp/automaskfix/smoother_nonbin.nii')
         thresh_img2 = thresh_img2 != -4
         thresh_img2 = sitk.Cast(thresh_img2, sitk.sitkUInt8)
-        sitk.WriteImage(thresh_img2, 'Z:/work2/manske/temp/automaskfix/smoother_{}.nii'.format(component))
 
         distance_map_filter = sitk.SignedMaurerDistanceMapImageFilter()
         thresh_img2 = distance_map_filter.Execute(thresh_img2)
-        sitk.WriteImage(thresh_img2, 'Z:/work2/manske/temp/automaskfix/distance_{}.nii'.format(component))
 
         thresh_img2 = sitk.BinaryThreshold(thresh_img2, 
                               lowerThreshold= -9999, 
                               upperThreshold= 300, 
                               insideValue=1)
-        sitk.WriteImage(thresh_img2, 'Z:/work2/manske/temp/automaskfix/distance_thresh_{}.nii'.format(component))
         
         depth = img.GetDepth()
 
@@ -122,13 +114,10 @@ class Automasker:
                 thresh_img2[:,:,z] += post_fill
                 print(z)
                 break
-        sitk.WriteImage(thresh_img2, 'Z:/work2/manske/temp/automaskfix/prefilled_{}.nii'.format(component))        
         thresh_img2 = fillhole_filter.Execute(thresh_img2)
-        sitk.WriteImage(thresh_img2, 'Z:/work2/manske/temp/automaskfix/filled_{}.nii'.format(component))
 
         erode_filter.SetKernelRadius(20)
         thresh_img2 = erode_filter.Execute(thresh_img2)
-        sitk.WriteImage(thresh_img2, 'Z:/work2/manske/temp/automaskfix/filled_eroded_{}.nii'.format(component))
 
         print("Ready!!")
 
