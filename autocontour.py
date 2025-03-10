@@ -72,12 +72,25 @@ def autocontour(img):
     
     # img = convert_hu_to_bmd(img, mu_water, rescale_slope, rescale_intercept)
 
+    pad_size = [16, 16, 16]
+    padded_img = sitk.ConstantPad(img, pad_size, pad_size, 0)
+
     auto_contour = Automasker()
-    prx_mask = auto_contour.get_periosteal_mask(img, 1)
-    dst_mask = auto_contour.get_periosteal_mask(img, 2)
+    prx_mask = auto_contour.get_periosteal_mask(padded_img, 1)
+    dst_mask = auto_contour.get_periosteal_mask(padded_img, 2)
+
+    # Step 3: Depad the Masks
+    original_size = img.GetSize()
+    depad_lower = [16, 16, 16]  # Amount to crop from the lower bounds
+    depad_upper = [original_size[i] - 16 for i in range(3)]  # Upper crop to restore original size
+
+    prx_mask = sitk.Crop(prx_mask, depad_lower, depad_lower)
+    dst_mask = sitk.Crop(dst_mask, depad_lower, depad_lower)
 
     # Create a mask for the entire joint
-    mask = prx_mask + dst_mask
+    mask = prx_mask*(1-dst_mask) | (dst_mask*2)
+    # mask = prx_mask + dst_mask
+    # mask = mask != 0
 
     return dst_mask, prx_mask, mask
 
@@ -86,10 +99,11 @@ def main():
     # Parse input arguments
     parser = argparse.ArgumentParser()
     parser.add_argument("image_path", type=str, help="Image (path + filename)")
-    # parser.add_argument("mask_path", type=str, help="Image (path + filename)")
+    parser.add_argument("out_image_path", type=str, help="Output image path")
     args = parser.parse_args()
 
     image_path = args.image_path
+    out_image_path = args.out_image_path
     # mask_path = args.mask_path
 
     # Create a new folder to hold the output images
@@ -98,7 +112,7 @@ def main():
 
     prx_mask_path = os.path.join(image_dir, basename + "_PRX_MASK.nii")
     dst_mask_path = os.path.join(image_dir, basename + "_DST_MASK.nii")
-    mask_path = os.path.join(image_dir, basename + "_MASK.nii")
+    # mask_path = os.path.join(output_dir, basename + "_MASK.nii.gz")
 
     # Read in images as floats to increase precision
     image = sitk.ReadImage(image_path, sitk.sitkFloat32)
@@ -125,9 +139,9 @@ def main():
     image = sitk.Cast(sitk.Normalize(image), sitk.sitkFloat32)
     dst_mask, prx_mask, mask = autocontour(image)
 
-    sitk.WriteImage(mask, mask_path)
-    sitk.WriteImage(prx_mask, prx_mask_path)
-    sitk.WriteImage(dst_mask, dst_mask_path)
+    sitk.WriteImage(mask, out_image_path)
+    # sitk.WriteImage(prx_mask, prx_mask_path)
+    # sitk.WriteImage(dst_mask, dst_mask_path)
 
 
 
