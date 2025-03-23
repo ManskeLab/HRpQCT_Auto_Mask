@@ -14,7 +14,7 @@ def autocontour(img):
     stats_filter = sitk.StatisticsImageFilter()
 
     thresh_filter = sitk.BinaryThresholdImageFilter()
-    thresh_filter.SetLowerThreshold(2)
+    thresh_filter.SetLowerThreshold(0.5)
     thresh_filter.SetUpperThreshold(9999)
     thresh_img = thresh_filter.Execute(img)
 
@@ -46,7 +46,7 @@ def autocontour(img):
         post_mean = stats_filter.GetMean()
         # print(post_mean - pre_mean)
 
-        if (post_mean - pre_mean) > 0.025:
+        if (post_mean - pre_mean) > 0.01:
             post_fill -= pre_fill
             post_fill = sitk.Cast(post_fill, sitk.sitkFloat32)
             img[:,:,z] += post_fill*5
@@ -64,7 +64,7 @@ def autocontour(img):
         post_mean = stats_filter.GetMean()
         # print(post_mean - pre_mean)
 
-        if (post_mean - pre_mean) > 0.025:
+        if (post_mean - pre_mean) > 0.01:
             post_fill -= pre_fill
             post_fill = sitk.Cast(post_fill, sitk.sitkFloat32)
             img[:,:,z] += post_fill*5
@@ -88,30 +88,43 @@ def autocontour(img):
     dst_mask = sitk.Crop(dst_mask, depad_lower, depad_lower)
 
     # Create a mask for the entire joint
-    mask = prx_mask*(1-dst_mask) | (dst_mask*2)
+    segm = prx_mask*(1-dst_mask) | (dst_mask*2)
+    mask = segm != 0
+
+    for z in range(depth):
+        slice_z = segm[:,:,z]
+        max_val = stats_filter.GetMaximum()
+
+        if max_val == 1:
+            # swap
+            segm = dst_mask*(1-prx_mask) | (prx_mask*2)
+            break
+        else:
+            break
+
     # mask = prx_mask + dst_mask
     # mask = mask != 0
 
-    return dst_mask, prx_mask, mask
+    return segm, mask
 
 
 def main():
     # Parse input arguments
     parser = argparse.ArgumentParser()
     parser.add_argument("image_path", type=str, help="Image (path + filename)")
+    parser.add_argument("out_mask_dir", type=str, help="Output mask path")
     parser.add_argument("out_image_path", type=str, help="Output image path")
     args = parser.parse_args()
 
     image_path = args.image_path
+    out_mask_dir = args.out_mask_dir
     out_image_path = args.out_image_path
     # mask_path = args.mask_path
 
-    # Create a new folder to hold the output images
-    image_dir = os.path.dirname(image_path)
-    basename = os.path.splitext(os.path.basename(image_path))[0]
+    input_filename = os.path.basename(image_path).split('/')[-1]
 
-    prx_mask_path = os.path.join(image_dir, basename + "_PRX_MASK.nii")
-    dst_mask_path = os.path.join(image_dir, basename + "_DST_MASK.nii")
+    mc_mask_path = os.path.join(out_mask_dir, "MC_mask_"+input_filename)
+    pp_mask_path = os.path.join(out_mask_dir, "PP_mask_"+input_filename)
     # mask_path = os.path.join(output_dir, basename + "_MASK.nii.gz")
 
     # Read in images as floats to increase precision
@@ -136,12 +149,15 @@ def main():
     # exit()
 
     # Run the autocontour method for each bone
-    image = sitk.Cast(sitk.Normalize(image), sitk.sitkFloat32)
-    dst_mask, prx_mask, mask = autocontour(image)
+    image_norm = sitk.Cast(sitk.Normalize(image), sitk.sitkFloat32)
+    segm, mask = autocontour(image_norm)
 
-    sitk.WriteImage(mask, out_image_path)
-    # sitk.WriteImage(prx_mask, prx_mask_path)
-    # sitk.WriteImage(dst_mask, dst_mask_path)
+    masked_img = sitk.Mask(image, mask)
+
+    # sitk.WriteImage(mask, out_mask_path)
+    # sitk.WriteImage(masked_img, out_image_path)
+    sitk.WriteImage(segm==1, mc_mask_path)
+    sitk.WriteImage(segm==2, pp_mask_path)
 
 
 
